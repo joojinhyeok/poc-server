@@ -1,0 +1,26 @@
+spring:
+  profiles:
+    active: local
+  threads:
+    virtual:
+      enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+
+server:
+  port: 8080
+
+jwt:
+  secret: ${JWT_SECRET:local-dev-secret-key-must-be-at-least-256-bits-long-for-hs256}
+  access-token-expiry: 1800000
+  refresh-token-expiry: 1209600000
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
