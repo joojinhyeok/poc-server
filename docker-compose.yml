@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: internPoc-db
+    environment:
+      POSTGRES_DB: internPoc
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev1234
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
