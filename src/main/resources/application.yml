@@ -12,15 +12,80 @@ spring:
       hibernate:
         format_sql: true
         default_batch_fetch_size: 100
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 1
+        retry:
+          enabled: false
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      timeout: 3000ms
 
 server:
   port: 8080
 
 jwt:
-  secret: ${JWT_SECRET:local-dev-secret-key-must-be-at-least-256-bits-long-for-hs256}
+  secret: ${JWT_SECRET}
   access-token-expiry: 1800000
   refresh-token-expiry: 1209600000
 
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+app:
+  exchange:
+    max-concurrent:
+      UPBIT: 3
+      BINANCE: 5
+      BITHUMB: 5
+      BYBIT: 3
+      KORBIT: 5
+      COINONE: 3
+      GATEIO: 2
+      OKX: 2
+    rate-limit:
+      UPBIT:
+        type: FIXED_WINDOW
+        limit: 8
+        window-seconds: 1
+      BINANCE:
+        type: WEIGHT_BUDGET
+        limit: 5000
+        window-seconds: 60
+      BITHUMB:
+        type: FIXED_WINDOW
+        limit: 15
+        window-seconds: 1
+      BYBIT:
+        type: FIXED_WINDOW
+        limit: 80
+        window-seconds: 5
+      KORBIT:
+        type: FIXED_WINDOW
+        limit: 40
+        window-seconds: 1
+      COINONE:
+        type: FIXED_WINDOW
+        limit: 8
+        window-seconds: 1
+      GATEIO:
+        type: FIXED_WINDOW
+        limit: 8
+        window-seconds: 1
+      OKX:
+        type: FIXED_WINDOW
+        limit: 8
+        window-seconds: 1
