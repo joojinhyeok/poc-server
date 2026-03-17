@@ -31,8 +31,20 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
-    // PostgreSQL
+    // Messaging & Caching
+    implementation("org.springframework.boot:spring-boot-starter-amqp")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
+
+    // Database
     runtimeOnly("org.postgresql:postgresql")
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-database-postgresql")
+
+    // Monitoring
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+
+    // .env 파일 로딩
+    implementation("me.paulschwarz:spring-dotenv:4.0.0")
 
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
