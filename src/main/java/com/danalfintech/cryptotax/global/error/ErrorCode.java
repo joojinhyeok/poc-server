@@ -17,7 +17,16 @@ public enum ErrorCode {
 
     // 인증
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "A001", "유효하지 않은 토큰입니다."),
-    EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "A002", "만료된 토큰입니다.");
+    EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "A002", "만료된 토큰입니다."),
+
+    // 수집
+    COLLECTION_ALREADY_IN_PROGRESS(HttpStatus.CONFLICT, "COL001", "이미 진행 중인 수집 작업이 있습니다."),
+    COLLECTION_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "COL002", "수집 작업을 찾을 수 없습니다."),
+    COLLECTION_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "COL003", "수집 기능이 일시 중단되었습니다."),
+
+    // 거래소
+    EXCHANGE_API_KEY_NOT_FOUND(HttpStatus.NOT_FOUND, "EX001", "거래소 API 키를 찾을 수 없습니다."),
+    EXCHANGE_API_KEY_INVALID(HttpStatus.BAD_REQUEST, "EX002", "유효하지 않은 거래소 API 키입니다.");
 
     private final HttpStatus status;
     private final String code;
