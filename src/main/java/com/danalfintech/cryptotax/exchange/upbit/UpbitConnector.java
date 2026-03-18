@@ -6,6 +6,8 @@ import com.danalfintech.cryptotax.exchange.upbit.dto.UpbitMarket;
 import com.danalfintech.cryptotax.exchange.upbit.dto.UpbitTrade;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeConnector;
 import com.danalfintech.cryptotax.global.infra.exchange.dto.*;
+import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
+import com.danalfintech.cryptotax.global.infra.exchange.ExchangeRestClientFactory;
 import com.danalfintech.cryptotax.global.infra.redis.DistributedRateLimiter;
 import com.danalfintech.cryptotax.exchange.common.Exchange;
 import io.jsonwebtoken.Jwts;
@@ -15,8 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.RestClient;
-
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -39,13 +39,13 @@ public class UpbitConnector implements ExchangeConnector {
     private static final DateTimeFormatter CURSOR_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private final DistributedRateLimiter rateLimiter;
-    private final RestClient.Builder restClientBuilder;
+    private final ExchangeRestClientFactory restClientFactory;
 
     @Override
     public List<BalanceItem> getBalances(ExchangeApiKey key) {
         UpbitAccount[] accounts = fetchWithRetry(() -> {
-            rateLimiter.waitForPermit(Exchange.UPBIT, 1);
-            return createClient()
+            rateLimiter.waitForPermit(ExchangeContext.of(Exchange.UPBIT), 1);
+            return restClientFactory.create(key)
                     .get()
                     .uri(BASE_URL + "/v1/accounts")
                     .header("Authorization", "Bearer " + generateToken(key, null))
@@ -79,8 +79,8 @@ public class UpbitConnector implements ExchangeConnector {
         String queryString = buildTradeQueryString(market, startTime, limit);
 
         UpbitTrade[] trades = fetchWithRetry(() -> {
-            rateLimiter.waitForPermit(Exchange.UPBIT, 1);
-            return createClient()
+            rateLimiter.waitForPermit(ExchangeContext.of(Exchange.UPBIT), 1);
+            return restClientFactory.create(key)
                     .get()
                     .uri(BASE_URL + "/v1/orders/closed?" + queryString)
                     .header("Authorization", "Bearer " + generateToken(key, queryString))
@@ -121,8 +121,8 @@ public class UpbitConnector implements ExchangeConnector {
     @Override
     public List<String> getMarkets(ExchangeApiKey key) {
         UpbitMarket[] markets = fetchWithRetry(() -> {
-            rateLimiter.waitForPermit(Exchange.UPBIT, 1);
-            return createClient()
+            rateLimiter.waitForPermit(ExchangeContext.of(Exchange.UPBIT), 1);
+            return restClientFactory.create(key)
                     .get()
                     .uri(BASE_URL + "/v1/market/all")
                     .retrieve()
@@ -141,8 +141,8 @@ public class UpbitConnector implements ExchangeConnector {
     @Override
     public VerifyResult verify(ExchangeApiKey key) {
         try {
-            rateLimiter.waitForPermit(Exchange.UPBIT, 1);
-            createClient()
+            rateLimiter.waitForPermit(ExchangeContext.of(Exchange.UPBIT), 1);
+            restClientFactory.create(key)
                     .get()
                     .uri(BASE_URL + "/v1/api_keys")
                     .header("Authorization", "Bearer " + generateToken(key, null))
@@ -250,11 +250,7 @@ public class UpbitConnector implements ExchangeConnector {
         return sb.toString();
     }
 
-    private RestClient createClient() {
-        return restClientBuilder
-                .defaultHeader("Content-Type", "application/json")
-                .build();
-    }
+
 
     private LocalDateTime parseDateTime(String dateTimeStr) {
         try {

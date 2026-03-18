@@ -1,8 +1,8 @@
 package com.danalfintech.cryptotax.global.infra.redis;
 
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 
 public interface ExchangeRateLimitPolicy {
 
-    boolean tryAcquire(Exchange exchange, int weight);
+    boolean tryAcquire(ExchangeContext ctx, int weight);
 }

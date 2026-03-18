@@ -2,6 +2,7 @@ package com.danalfintech.cryptotax.collection.service;
 
 import com.danalfintech.cryptotax.collection.domain.CollectionJob;
 import com.danalfintech.cryptotax.collection.domain.CollectionJobRepository;
+import com.danalfintech.cryptotax.global.common.RedisKeyBuilder;
 import com.danalfintech.cryptotax.collection.dto.CollectionStatusResponse;
 import com.danalfintech.cryptotax.collection.dto.ProgressData;
 import com.danalfintech.cryptotax.global.error.BusinessException;
@@ -19,7 +20,6 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class CollectionProgressService {
 
-    private static final String PROGRESS_KEY_PREFIX = "collection:progress:";
     private static final Duration PROGRESS_TTL = Duration.ofHours(2);
 
     private final RedisTemplate<String, String> redisTemplate;
@@ -75,6 +75,6 @@ public class CollectionProgressService {
     }
 
     private String progressKey(Long jobId) {
-        return PROGRESS_KEY_PREFIX + jobId;
+        return RedisKeyBuilder.progressKey(jobId);
     }
 }
