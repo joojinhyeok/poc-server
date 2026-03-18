@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,9 +45,10 @@ public class CollectionService {
             throw new BusinessException(ErrorCode.EXCHANGE_API_KEY_INVALID);
         }
 
-        // Dedupe 체크: 같은 user + exchange + PENDING/PROCESSING이면 기존 반환
-        Optional<CollectionJob> existingJob = collectionJobRepository.findByUserIdAndExchangeAndStatusIn(
-                userId, exchange, List.of(CollectionJobStatus.PENDING, CollectionJobStatus.PROCESSING));
+        // Dedupe 체크 (비관적 락): 같은 user + exchange + PENDING/PROCESSING이면 기존 반환
+        Optional<CollectionJob> existingJob = collectionJobRepository
+                .findByUserIdAndExchangeAndStatusInForUpdate(
+                        userId, exchange, List.of(CollectionJobStatus.PENDING, CollectionJobStatus.PROCESSING));
 
         if (existingJob.isPresent()) {
             return CollectionStatusResponse.from(existingJob.get());
@@ -62,7 +65,7 @@ public class CollectionService {
         // Redis progress 초기화
         progressService.initProgress(job.getId());
 
-        // RabbitMQ 발행
+        // RabbitMQ 발행: DB 커밋 후 발행 (AFTER_COMMIT)
         String routingKey = (type == CollectionJobType.INCREMENTAL)
                 ? RabbitConfig.ROUTING_HIGH
                 : RabbitConfig.ROUTING_LOW;
@@ -76,15 +79,18 @@ public class CollectionService {
                 LocalDateTime.now()
         );
 
-        try {
-            rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_COLLECTION, routingKey, message);
-            log.info("수집 메시지 발행: jobId={}, exchange={}, type={}, routingKey={}",
-                    job.getId(), exchange, type, routingKey);
-        } catch (Exception e) {
-            log.error("RabbitMQ 메시지 발행 실패: jobId={}", job.getId(), e);
-            job.markFailed("메시지 발행 실패");
-            throw new BusinessException(ErrorCode.COLLECTION_SERVICE_UNAVAILABLE);
-        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_COLLECTION, routingKey, message);
+                    log.info("수집 메시지 발행: jobId={}, exchange={}, type={}, routingKey={}",
+                            job.getId(), exchange, type, routingKey);
+                } catch (Exception e) {
+                    log.error("RabbitMQ 메시지 발행 실패 (DB 커밋 완료됨, 수동 재발행 필요): jobId={}", job.getId(), e);
+                }
+            }
+        });
 
         return CollectionStatusResponse.from(job);
     }
