@@ -33,4 +33,23 @@ public record CollectionStatusResponse(
                 job.getCompletedAt()
         );
     }
+
+    /**
+     * Redis 실시간 진행률을 반영한 응답 생성.
+     * 수집 진행 중(PROCESSING)일 때 DB보다 Redis가 더 최신 값을 가지므로 이를 우선 사용.
+     */
+    public static CollectionStatusResponse fromWithProgress(CollectionJob job, ProgressData progress) {
+        return new CollectionStatusResponse(
+                job.getId(),
+                job.getExchange(),
+                job.getType(),
+                job.getStatus(),
+                progress.totalSymbols(),
+                progress.processedSymbols(),
+                progress.newTradesCount(),
+                job.getFailReason(),
+                job.getStartedAt(),
+                job.getCompletedAt()
+        );
+    }
 }

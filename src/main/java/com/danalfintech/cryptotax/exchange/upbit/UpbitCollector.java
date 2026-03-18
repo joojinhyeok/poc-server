@@ -26,6 +26,12 @@ public class UpbitCollector implements ExchangeCollector {
     private static final int PAGE_LIMIT = 100;
 
     private final UpbitConnector connector;
+
+    @Override
+    public Exchange getExchange() {
+        return Exchange.UPBIT;
+    }
+
     private final TradeRepository tradeRepository;
     private final AssetRepository assetRepository;
     private final SyncCursorRepository syncCursorRepository;
@@ -41,7 +47,6 @@ public class UpbitCollector implements ExchangeCollector {
         StringBuilder failReasons = new StringBuilder();
 
         try {
-            // 마켓 목록 조회
             List<String> symbols = connector.getMarkets(key);
             int totalSymbols = symbols.size();
             job.setTotalSymbols(totalSymbols);
@@ -49,6 +54,7 @@ public class UpbitCollector implements ExchangeCollector {
 
             for (String symbol : symbols) {
                 try {
+                    // FULL 수집: fromId null → 2017-01-01부터 전체 조회
                     int symbolTrades = collectSymbolTrades(userId, key, symbol, null);
                     totalNewTrades += symbolTrades;
                     processedSymbols++;
@@ -61,10 +67,8 @@ public class UpbitCollector implements ExchangeCollector {
                 }
             }
 
-            // 잔고 동기화
             syncBalances(userId, key);
 
-            // 최종 상태 결정
             CollectionJobStatus finalStatus;
             if (processedSymbols == totalSymbols) {
                 finalStatus = CollectionJobStatus.COMPLETED;
@@ -99,13 +103,14 @@ public class UpbitCollector implements ExchangeCollector {
 
             for (String symbol : symbols) {
                 try {
-                    // SyncCursor에서 마지막 트레이드 ID 조회
+                    // SyncCursor에서 마지막 동기화 시각 조회 → 해당 시각 이후부터 조회
                     SyncCursor cursor = syncCursorRepository
                             .findByUserIdAndExchangeAndSymbol(userId, Exchange.UPBIT, symbol)
                             .orElse(null);
 
-                    String fromId = (cursor != null) ? cursor.getLastTradeId() : null;
-                    int symbolTrades = collectSymbolTrades(userId, key, symbol, fromId);
+                    // lastTradeId에 ISO 8601 timestamp를 저장 (업비트 start_time 파라미터용)
+                    String fromTimestamp = (cursor != null) ? cursor.getLastTradeId() : null;
+                    int symbolTrades = collectSymbolTrades(userId, key, symbol, fromTimestamp);
                     totalNewTrades += symbolTrades;
                     processedSymbols++;
 
@@ -117,7 +122,6 @@ public class UpbitCollector implements ExchangeCollector {
                 }
             }
 
-            // 잔고 동기화
             syncBalances(userId, key);
 
             CollectionJobStatus finalStatus;
@@ -138,6 +142,11 @@ public class UpbitCollector implements ExchangeCollector {
         }
     }
 
+    /**
+     * 심볼별 체결 내역 페이지네이션 수집.
+     * fromId는 ISO 8601 timestamp (start_time 파라미터) 또는 null (전체 수집).
+     * 다음 페이지 커서는 마지막 주문의 created_at.
+     */
     private int collectSymbolTrades(Long userId, ExchangeApiKey key, String symbol, String fromId) {
         int totalInserted = 0;
         String cursor = fromId;
@@ -150,8 +159,8 @@ public class UpbitCollector implements ExchangeCollector {
             }
 
             int pageInserted = 0;
-            String lastTradeId = null;
             LocalDateTime lastTradedAt = null;
+            String lastCreatedAt = null;
 
             for (TradeItem item : page.trades()) {
                 int inserted = tradeRepository.insertIgnore(
@@ -168,15 +177,16 @@ public class UpbitCollector implements ExchangeCollector {
                         item.market()
                 );
                 pageInserted += inserted;
-                lastTradeId = item.exchangeTradeId();
                 lastTradedAt = item.tradedAt();
             }
 
             totalInserted += pageInserted;
 
-            // SyncCursor 업데이트
-            if (lastTradeId != null) {
-                updateSyncCursor(userId, symbol, lastTradeId, lastTradedAt);
+            // SyncCursor 업데이트: 마지막 주문 시각을 저장 (다음 증분 수집의 start_time으로 사용)
+            if (lastTradedAt != null) {
+                // nextCursor에는 마지막 주문의 created_at (ISO 8601 문자열)이 들어있음
+                String cursorValue = page.nextCursor() != null ? page.nextCursor() : lastTradedAt.toString();
+                updateSyncCursor(userId, symbol, cursorValue, lastTradedAt);
             }
 
             // 꼬리 확인: 응답 건수 < limit이면 마지막 페이지

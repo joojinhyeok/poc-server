@@ -3,6 +3,7 @@ package com.danalfintech.cryptotax.collection.service;
 import com.danalfintech.cryptotax.collection.domain.CollectionJob;
 import com.danalfintech.cryptotax.collection.domain.CollectionJobRepository;
 import com.danalfintech.cryptotax.collection.dto.CollectionStatusResponse;
+import com.danalfintech.cryptotax.collection.dto.ProgressData;
 import com.danalfintech.cryptotax.global.error.BusinessException;
 import com.danalfintech.cryptotax.global.error.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,7 +13,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.Map;
 
 @Slf4j
 @Service
@@ -28,13 +28,8 @@ public class CollectionProgressService {
 
     public void initProgress(Long jobId) {
         try {
-            Map<String, Object> progress = Map.of(
-                    "totalSymbols", 0,
-                    "processedSymbols", 0,
-                    "newTradesCount", 0,
-                    "status", "PENDING"
-            );
-            String json = objectMapper.writeValueAsString(progress);
+            ProgressData data = new ProgressData("PENDING", 0, 0, 0);
+            String json = objectMapper.writeValueAsString(data);
             redisTemplate.opsForValue().set(progressKey(jobId), json, PROGRESS_TTL);
         } catch (Exception e) {
             log.warn("Redis progress 초기화 실패: jobId={}", jobId, e);
@@ -43,13 +38,8 @@ public class CollectionProgressService {
 
     public void updateProgress(Long jobId, String status, int totalSymbols, int processedSymbols, int newTradesCount) {
         try {
-            Map<String, Object> progress = Map.of(
-                    "totalSymbols", totalSymbols,
-                    "processedSymbols", processedSymbols,
-                    "newTradesCount", newTradesCount,
-                    "status", status
-            );
-            String json = objectMapper.writeValueAsString(progress);
+            ProgressData data = new ProgressData(status, totalSymbols, processedSymbols, newTradesCount);
+            String json = objectMapper.writeValueAsString(data);
             redisTemplate.opsForValue().set(progressKey(jobId), json, PROGRESS_TTL);
         } catch (Exception e) {
             log.warn("Redis progress 업데이트 실패: jobId={}", jobId, e);
@@ -64,26 +54,23 @@ public class CollectionProgressService {
         }
     }
 
-    public CollectionStatusResponse getStatus(Long jobId) {
-        // Redis 우선 조회
+    public CollectionStatusResponse getStatus(Long jobId, Long userId) {
+        // 소유권 검증 + DB 조회
+        CollectionJob job = collectionJobRepository.findByIdAndUserId(jobId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COLLECTION_JOB_NOT_FOUND));
+
+        // Redis 우선 조회 — 실시간 진행률 반영
         try {
             String json = redisTemplate.opsForValue().get(progressKey(jobId));
             if (json != null) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> progress = objectMapper.readValue(json, Map.class);
-                CollectionJob job = collectionJobRepository.findById(jobId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.COLLECTION_JOB_NOT_FOUND));
-                return CollectionStatusResponse.from(job);
+                ProgressData progress = objectMapper.readValue(json, ProgressData.class);
+                return CollectionStatusResponse.fromWithProgress(job, progress);
             }
-        } catch (BusinessException e) {
-            throw e;
         } catch (Exception e) {
             log.warn("Redis progress 조회 실패, DB fallback: jobId={}", jobId, e);
         }
 
         // DB fallback
-        CollectionJob job = collectionJobRepository.findById(jobId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.COLLECTION_JOB_NOT_FOUND));
         return CollectionStatusResponse.from(job);
     }
 

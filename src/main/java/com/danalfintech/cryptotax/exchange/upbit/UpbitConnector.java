@@ -12,21 +12,20 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -35,6 +34,8 @@ public class UpbitConnector implements ExchangeConnector {
 
     private static final String BASE_URL = "https://api.upbit.com";
     private static final int DEFAULT_LIMIT = 100;
+    /** 업비트 /v1/orders/closed는 start_time 없으면 최근 7일만 조회. 전체 수집 시 이 기준일부터 시작 */
+    private static final String FULL_COLLECTION_START = "2017-01-01T00:00:00";
 
     private final DistributedRateLimiter rateLimiter;
     private final RestClient.Builder restClientBuilder;
@@ -63,10 +64,18 @@ public class UpbitConnector implements ExchangeConnector {
                 .toList();
     }
 
+    /**
+     * 업비트 체결 주문 조회.
+     * /v1/orders/closed API는 start_time/end_time 기반 시간 범위 페이지네이션 사용.
+     * fromId가 null이면 FULL_COLLECTION_START부터 시작 (전체 수집).
+     * fromId가 있으면 해당 시각 이후부터 조회 (증분 수집 — ISO 8601 timestamp).
+     */
     @Override
     public TradePageResult getTrades(ExchangeApiKey key, String symbol, String fromId, int limit) {
         String market = "KRW-" + symbol;
-        String queryString = buildTradeQueryString(market, fromId, limit);
+        String startTime = (fromId != null && !fromId.isEmpty()) ? fromId : FULL_COLLECTION_START;
+
+        String queryString = buildTradeQueryString(market, startTime, limit);
 
         UpbitTrade[] trades = fetchWithRetry(() -> {
             rateLimiter.waitForPermit(Exchange.UPBIT, 1);
@@ -82,8 +91,8 @@ public class UpbitConnector implements ExchangeConnector {
             return new TradePageResult(List.of(), false, null);
         }
 
+        // done + cancel 모두 포함 (cancel도 부분 체결분이 있을 수 있음)
         List<TradeItem> items = Arrays.stream(trades)
-                .filter(t -> "done".equals(t.state()) || "cancel".equals(t.state()))
                 .filter(t -> new BigDecimal(t.executedVolume()).compareTo(BigDecimal.ZERO) > 0)
                 .map(t -> new TradeItem(
                         t.uuid(),
@@ -100,8 +109,9 @@ public class UpbitConnector implements ExchangeConnector {
 
         // 꼬리 확인: 응답 건수 < limit이면 마지막 페이지
         boolean hasMore = trades.length >= limit;
-        String nextCursor = hasMore && trades.length > 0
-                ? trades[trades.length - 1].uuid()
+        // 다음 페이지 커서: 마지막 주문의 created_at을 다음 start_time으로 사용
+        String nextCursor = hasMore
+                ? trades[trades.length - 1].createdAt()
                 : null;
 
         return new TradePageResult(items, hasMore, nextCursor);
@@ -123,7 +133,7 @@ public class UpbitConnector implements ExchangeConnector {
         return Arrays.stream(markets)
                 .map(UpbitMarket::market)
                 .filter(m -> m.startsWith("KRW-"))
-                .map(m -> m.substring(4)) // "KRW-BTC" → "BTC"
+                .map(m -> m.substring(4))
                 .toList();
     }
 
@@ -166,7 +176,7 @@ public class UpbitConnector implements ExchangeConnector {
                 return apiCall.execute();
             } catch (HttpClientErrorException e) {
                 if (e.getStatusCode().value() == 401) {
-                    throw e; // 재시도 없음
+                    throw e;
                 }
                 if (e.getStatusCode().value() == 429) {
                     attempt429++;
@@ -224,15 +234,18 @@ public class UpbitConnector implements ExchangeConnector {
                 .compact();
     }
 
-    private String buildTradeQueryString(String market, String fromId, int limit) {
+    /**
+     * 업비트 /v1/orders/closed 쿼리 파라미터 생성.
+     * state 필터 없이 호출하면 done+cancel 모두 반환.
+     * start_time으로 시간 범위 지정, order_by=asc로 오래된 것부터.
+     */
+    private String buildTradeQueryString(String market, String startTime, int limit) {
         StringBuilder sb = new StringBuilder();
         sb.append("market=").append(market);
-        sb.append("&state=done");
+        sb.append("&states[]=done&states[]=cancel");
+        sb.append("&start_time=").append(URLEncoder.encode(startTime, StandardCharsets.UTF_8));
         sb.append("&limit=").append(limit);
         sb.append("&order_by=asc");
-        if (fromId != null && !fromId.isEmpty()) {
-            sb.append("&uuids[]=").append(fromId);
-        }
         return sb.toString();
     }
 

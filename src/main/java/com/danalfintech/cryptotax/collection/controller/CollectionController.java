@@ -34,7 +34,8 @@ public class CollectionController {
     public ResponseEntity<CollectionStatusResponse> status(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long jobId) {
-        CollectionStatusResponse response = progressService.getStatus(jobId);
+        Long userId = Long.parseLong(user.getUserId());
+        CollectionStatusResponse response = progressService.getStatus(jobId, userId);
         return ResponseEntity.ok(response);
     }
 
