@@ -36,6 +36,7 @@ public class UpbitConnector implements ExchangeConnector {
     private static final int DEFAULT_LIMIT = 100;
     /** 업비트 /v1/orders/closed는 start_time 없으면 최근 7일만 조회. 전체 수집 시 이 기준일부터 시작 */
     private static final String FULL_COLLECTION_START = "2017-01-01T00:00:00";
+    private static final DateTimeFormatter CURSOR_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private final DistributedRateLimiter rateLimiter;
     private final RestClient.Builder restClientBuilder;
@@ -109,9 +110,9 @@ public class UpbitConnector implements ExchangeConnector {
 
         // 꼬리 확인: 응답 건수 < limit이면 마지막 페이지
         boolean hasMore = trades.length >= limit;
-        // 다음 페이지 커서: 마지막 주문의 created_at을 다음 start_time으로 사용
+        // 다음 페이지 커서: 마지막 주문의 created_at을 고정 포맷으로 통일
         String nextCursor = hasMore
-                ? trades[trades.length - 1].createdAt()
+                ? parseDateTime(trades[trades.length - 1].createdAt()).format(CURSOR_FORMAT)
                 : null;
 
         return new TradePageResult(items, hasMore, nextCursor);
