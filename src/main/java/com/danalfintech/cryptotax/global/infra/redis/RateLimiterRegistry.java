@@ -1,9 +1,8 @@
 package com.danalfintech.cryptotax.global.infra.redis;
 
 import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.global.config.ExchangeProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -16,23 +15,31 @@ import java.util.Map;
 public class RateLimiterRegistry {
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final ExchangeProperties exchangeProperties;
     private final Map<Exchange, ExchangeRateLimitPolicy> policies = new EnumMap<>(Exchange.class);
 
-    public RateLimiterRegistry(RedisTemplate<String, String> redisTemplate) {
+    public RateLimiterRegistry(RedisTemplate<String, String> redisTemplate, ExchangeProperties exchangeProperties) {
         this.redisTemplate = redisTemplate;
+        this.exchangeProperties = exchangeProperties;
     }
 
     @PostConstruct
     public void init() {
-        // 안전 마진 적용된 값 (거래소 공식 한도의 ~80%)
-        policies.put(Exchange.UPBIT, new FixedWindowPolicy(redisTemplate, 8, 1));
-        policies.put(Exchange.BINANCE, new WeightBudgetPolicy(redisTemplate, 5000, 60));
-        policies.put(Exchange.BITHUMB, new FixedWindowPolicy(redisTemplate, 15, 1));
-        policies.put(Exchange.BYBIT, new FixedWindowPolicy(redisTemplate, 80, 5));
-        policies.put(Exchange.KORBIT, new FixedWindowPolicy(redisTemplate, 40, 1));
-        policies.put(Exchange.COINONE, new FixedWindowPolicy(redisTemplate, 8, 1));
-        policies.put(Exchange.GATEIO, new FixedWindowPolicy(redisTemplate, 8, 1));
-        policies.put(Exchange.OKX, new FixedWindowPolicy(redisTemplate, 8, 1));
+        exchangeProperties.getRateLimit().forEach((exchangeName, config) -> {
+            try {
+                Exchange exchange = Exchange.valueOf(exchangeName);
+                ExchangeRateLimitPolicy policy = switch (config.getType()) {
+                    case "WEIGHT_BUDGET" -> new WeightBudgetPolicy(redisTemplate, config.getLimit(), config.getWindowSeconds());
+                    default -> new FixedWindowPolicy(redisTemplate, config.getLimit(), config.getWindowSeconds());
+                };
+
+                policies.put(exchange, policy);
+                log.info("Rate limit 정책 등록: exchange={}, type={}, limit={}, window={}s",
+                        exchange, config.getType(), config.getLimit(), config.getWindowSeconds());
+            } catch (Exception e) {
+                log.warn("Rate limit 설정 파싱 실패: exchange={}", exchangeName, e);
+            }
+        });
     }
 
     public ExchangeRateLimitPolicy getPolicy(Exchange exchange) {

@@ -1,10 +1,13 @@
 package com.danalfintech.cryptotax.global.infra.exchange;
 
 import com.danalfintech.cryptotax.collection.domain.CollectionJob;
+import com.danalfintech.cryptotax.exchange.common.Exchange;
 import com.danalfintech.cryptotax.exchange.common.ExchangeApiKey;
 import com.danalfintech.cryptotax.global.infra.exchange.dto.CollectionResult;
 
 public interface ExchangeCollector {
+
+    Exchange getExchange();
 
     CollectionResult collectAll(CollectionJob job, ExchangeApiKey key);
 

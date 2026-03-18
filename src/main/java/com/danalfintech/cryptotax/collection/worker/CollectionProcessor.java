@@ -1,26 +1,17 @@
 package com.danalfintech.cryptotax.collection.worker;
 
-import com.danalfintech.cryptotax.collection.domain.CollectionJob;
-import com.danalfintech.cryptotax.collection.domain.CollectionJobRepository;
-import com.danalfintech.cryptotax.collection.domain.CollectionJobType;
 import com.danalfintech.cryptotax.collection.dto.CollectionMessage;
-import com.danalfintech.cryptotax.collection.service.CollectionProgressService;
 import com.danalfintech.cryptotax.exchange.common.Exchange;
-import com.danalfintech.cryptotax.exchange.common.ExchangeApiKey;
-import com.danalfintech.cryptotax.exchange.common.ExchangeApiKeyRepository;
-import com.danalfintech.cryptotax.global.infra.exchange.ExchangeCollector;
-import com.danalfintech.cryptotax.global.infra.exchange.dto.CollectionResult;
+import com.danalfintech.cryptotax.global.config.ExchangeProperties;
 import com.danalfintech.cryptotax.global.infra.redis.ExchangeLeaseManager;
 import com.rabbitmq.client.Channel;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.List;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -28,46 +19,25 @@ import java.util.UUID;
 @Component
 public class CollectionProcessor {
 
-    private final CollectionJobRepository collectionJobRepository;
-    private final ExchangeApiKeyRepository exchangeApiKeyRepository;
     private final ExchangeLeaseManager leaseManager;
-    private final CollectionProgressService progressService;
-    private final RedisTemplate<String, String> redisTemplate;
-    private final Map<Exchange, ExchangeCollector> collectorMap;
-    private final Map<Exchange, Integer> maxConcurrentMap;
+    private final CollectionTransactionService transactionService;
+    private final ExchangeProperties exchangeProperties;
+    private final Map<Exchange, Integer> maxConcurrentMap = new EnumMap<>(Exchange.class);
 
     public CollectionProcessor(
-            CollectionJobRepository collectionJobRepository,
-            ExchangeApiKeyRepository exchangeApiKeyRepository,
             ExchangeLeaseManager leaseManager,
-            CollectionProgressService progressService,
-            RedisTemplate<String, String> redisTemplate,
-            List<ExchangeCollector> collectors,
-            @Value("#{${app.exchange.max-concurrent}}") Map<String, Integer> maxConcurrent) {
-        this.collectionJobRepository = collectionJobRepository;
-        this.exchangeApiKeyRepository = exchangeApiKeyRepository;
+            CollectionTransactionService transactionService,
+            ExchangeProperties exchangeProperties) {
         this.leaseManager = leaseManager;
-        this.progressService = progressService;
-        this.redisTemplate = redisTemplate;
+        this.transactionService = transactionService;
+        this.exchangeProperties = exchangeProperties;
+    }
 
-        // ExchangeCollector를 Exchange별로 매핑
-        this.collectorMap = new java.util.EnumMap<>(Exchange.class);
-        // 런타임에 구현체가 여러 개 들어올 수 있으므로, 각 구현체의 클래스명에서 거래소를 추출
-        // 또는 인터페이스에 getExchange() 메서드 추가 필요
-        // 현재는 UpbitCollector만 존재하므로 리스트에서 직접 매핑
-        for (ExchangeCollector collector : collectors) {
-            String className = collector.getClass().getSimpleName().toUpperCase();
-            for (Exchange exchange : Exchange.values()) {
-                if (className.contains(exchange.name())) {
-                    collectorMap.put(exchange, collector);
-                }
-            }
-        }
-
-        this.maxConcurrentMap = new java.util.EnumMap<>(Exchange.class);
-        maxConcurrent.forEach((key, value) -> {
+    @PostConstruct
+    public void init() {
+        exchangeProperties.getMaxConcurrent().forEach((key, value) -> {
             try {
-                this.maxConcurrentMap.put(Exchange.valueOf(key), value);
+                maxConcurrentMap.put(Exchange.valueOf(key), value);
             } catch (IllegalArgumentException e) {
                 log.warn("알 수 없는 거래소 설정: {}", key);
             }
@@ -104,87 +74,19 @@ public class CollectionProcessor {
         });
 
         try {
-            processCollection(message, workerId);
+            transactionService.processCollection(message);
             ack(channel, deliveryTag);
         } catch (Exception e) {
             log.error("수집 처리 실패: jobId={}, exchange={}", jobId, exchange, e);
-            handleFailure(jobId, e.getMessage());
+            try {
+                transactionService.handleFailure(jobId, e.getMessage());
+            } catch (Exception ex) {
+                log.error("실패 처리 중 오류: jobId={}", jobId, ex);
+            }
             nack(channel, deliveryTag, false);
         } finally {
             heartbeatThread.interrupt();
             leaseManager.release(exchange, workerId);
-        }
-    }
-
-    @Transactional
-    protected void processCollection(CollectionMessage message, String workerId) {
-        Long jobId = message.jobId();
-        Exchange exchange = message.exchange();
-
-        CollectionJob job = collectionJobRepository.findById(jobId)
-                .orElseThrow(() -> new RuntimeException("수집 작업을 찾을 수 없음: " + jobId));
-
-        // 상태 전이: PENDING → PROCESSING
-        job.markProcessing();
-        collectionJobRepository.save(job);
-
-        // API Key 조회
-        ExchangeApiKey apiKey = exchangeApiKeyRepository.findById(message.apiKeyId())
-                .orElseThrow(() -> new RuntimeException("API Key를 찾을 수 없음: " + message.apiKeyId()));
-
-        // Collector 조회
-        ExchangeCollector collector = collectorMap.get(exchange);
-        if (collector == null) {
-            throw new RuntimeException("지원하지 않는 거래소: " + exchange);
-        }
-
-        // 수집 실행
-        CollectionResult result;
-        if (message.type() == CollectionJobType.FULL) {
-            result = collector.collectAll(job, apiKey);
-        } else {
-            result = collector.collectIncremental(job, apiKey);
-        }
-
-        // 결과 반영
-        switch (result.finalStatus()) {
-            case COMPLETED -> job.markCompleted(result.totalSymbols(), result.processedSymbols(), result.newTradesCount());
-            case PARTIAL -> job.markPartial(result.totalSymbols(), result.processedSymbols(), result.newTradesCount(), result.failReason());
-            case FAILED -> job.markFailed(result.failReason());
-            default -> job.markCompleted(result.totalSymbols(), result.processedSymbols(), result.newTradesCount());
-        }
-        collectionJobRepository.save(job);
-
-        // 진행률 업데이트
-        progressService.updateProgress(jobId, job.getStatus().name(),
-                result.totalSymbols(), result.processedSymbols(), result.newTradesCount());
-
-        // 캐시 무효화 (보충 9: DELETE만)
-        invalidateCaches(message.userId(), exchange);
-
-        log.info("수집 완료: jobId={}, status={}, trades={}", jobId, result.finalStatus(), result.newTradesCount());
-    }
-
-    private void invalidateCaches(Long userId, Exchange exchange) {
-        try {
-            redisTemplate.delete("balance:" + userId + ":" + exchange.name());
-            redisTemplate.delete("portfolio:summary:" + userId);
-            redisTemplate.delete("tax:result:" + userId);
-        } catch (Exception e) {
-            log.warn("캐시 무효화 실패: userId={}, exchange={}", userId, exchange, e);
-        }
-    }
-
-    private void handleFailure(Long jobId, String reason) {
-        try {
-            CollectionJob job = collectionJobRepository.findById(jobId).orElse(null);
-            if (job != null) {
-                job.markFailed(reason);
-                collectionJobRepository.save(job);
-                progressService.updateProgress(jobId, "FAILED", 0, 0, 0);
-            }
-        } catch (Exception e) {
-            log.error("실패 처리 중 오류: jobId={}", jobId, e);
         }
     }
 
