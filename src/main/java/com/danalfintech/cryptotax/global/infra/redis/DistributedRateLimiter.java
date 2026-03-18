@@ -1,6 +1,6 @@
 package com.danalfintech.cryptotax.global.infra.redis;
 
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -17,9 +17,9 @@ public class DistributedRateLimiter {
 
     private final RateLimiterRegistry registry;
 
-    public void waitForPermit(Exchange exchange, int weight) {
+    public void waitForPermit(ExchangeContext ctx, int weight) {
         for (int attempt = 0; attempt < MAX_WAIT_ATTEMPTS; attempt++) {
-            if (registry.tryAcquire(exchange, weight)) {
+            if (registry.tryAcquire(ctx, weight)) {
                 return;
             }
             try {
@@ -29,7 +29,7 @@ public class DistributedRateLimiter {
                 return;
             }
         }
-        log.warn("Rate limit 대기 초과, 보수적 딜레이 적용: exchange={}", exchange);
+        log.warn("Rate limit 대기 초과, 보수적 딜레이 적용: exchange={}", ctx.exchange());
         try {
             Thread.sleep(FALLBACK_DELAY.toMillis());
         } catch (InterruptedException e) {

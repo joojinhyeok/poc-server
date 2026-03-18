@@ -1,6 +1,7 @@
 package com.danalfintech.cryptotax.global.infra.redis;
 
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.global.common.RedisKeyBuilder;
+import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -44,10 +45,10 @@ public class WeightBudgetPolicy implements ExchangeRateLimitPolicy {
     }
 
     @Override
-    public boolean tryAcquire(Exchange exchange, int weight) {
+    public boolean tryAcquire(ExchangeContext ctx, int weight) {
         try {
             long windowId = System.currentTimeMillis() / (windowSeconds * 1000L);
-            String key = "ratelimit:weight:" + exchange.name() + ":" + windowId;
+            String key = RedisKeyBuilder.rateLimitWeight(ctx, windowId);
             Long result = redisTemplate.execute(
                     script,
                     Collections.singletonList(key),
@@ -57,7 +58,7 @@ public class WeightBudgetPolicy implements ExchangeRateLimitPolicy {
             );
             return result != null && result == 1L;
         } catch (Exception e) {
-            log.warn("WeightBudgetPolicy Redis 실패, fail-open: exchange={}", exchange, e);
+            log.warn("WeightBudgetPolicy Redis 실패, fail-open: exchange={}", ctx.exchange(), e);
             return true;
         }
     }

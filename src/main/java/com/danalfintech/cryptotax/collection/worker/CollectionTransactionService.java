@@ -8,7 +8,9 @@ import com.danalfintech.cryptotax.collection.service.CollectionProgressService;
 import com.danalfintech.cryptotax.exchange.common.Exchange;
 import com.danalfintech.cryptotax.exchange.common.ExchangeApiKey;
 import com.danalfintech.cryptotax.exchange.common.ExchangeApiKeyRepository;
+import com.danalfintech.cryptotax.global.common.RedisKeyBuilder;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeCollector;
+import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import com.danalfintech.cryptotax.global.infra.exchange.dto.CollectionResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -107,9 +109,10 @@ public class CollectionTransactionService {
 
     private void invalidateCaches(Long userId, Exchange exchange) {
         try {
-            redisTemplate.delete("balance:" + userId + ":" + exchange.name());
-            redisTemplate.delete("portfolio:summary:" + userId);
-            redisTemplate.delete("tax:result:" + userId);
+            ExchangeContext ctx = ExchangeContext.of(exchange);
+            redisTemplate.delete(RedisKeyBuilder.balanceKey(userId, ctx));
+            redisTemplate.delete(RedisKeyBuilder.portfolioSummaryKey(userId));
+            redisTemplate.delete(RedisKeyBuilder.taxResultKey(userId));
         } catch (Exception e) {
             log.warn("캐시 무효화 실패: userId={}, exchange={}", userId, exchange, e);
         }

@@ -2,6 +2,7 @@ package com.danalfintech.cryptotax.global.infra.redis;
 
 import com.danalfintech.cryptotax.exchange.common.Exchange;
 import com.danalfintech.cryptotax.global.config.ExchangeProperties;
+import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
@@ -42,16 +43,12 @@ public class RateLimiterRegistry {
         });
     }
 
-    public ExchangeRateLimitPolicy getPolicy(Exchange exchange) {
-        return policies.get(exchange);
-    }
-
-    public boolean tryAcquire(Exchange exchange, int weight) {
-        ExchangeRateLimitPolicy policy = policies.get(exchange);
+    public boolean tryAcquire(ExchangeContext ctx, int weight) {
+        ExchangeRateLimitPolicy policy = policies.get(ctx.exchange());
         if (policy == null) {
-            log.warn("Rate limit 정책이 없는 거래소: {}", exchange);
+            log.warn("Rate limit 정책이 없는 거래소: {}", ctx.exchange());
             return true;
         }
-        return policy.tryAcquire(exchange, weight);
+        return policy.tryAcquire(ctx, weight);
     }
 }

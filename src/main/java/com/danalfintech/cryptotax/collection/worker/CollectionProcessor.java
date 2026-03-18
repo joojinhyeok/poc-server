@@ -3,6 +3,7 @@ package com.danalfintech.cryptotax.collection.worker;
 import com.danalfintech.cryptotax.collection.dto.CollectionMessage;
 import com.danalfintech.cryptotax.exchange.common.Exchange;
 import com.danalfintech.cryptotax.global.config.ExchangeProperties;
+import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import com.danalfintech.cryptotax.global.infra.redis.ExchangeLeaseManager;
 import com.rabbitmq.client.Channel;
 import lombok.extern.slf4j.Slf4j;
@@ -49,12 +50,15 @@ public class CollectionProcessor {
         Exchange exchange = message.exchange();
         Long jobId = message.jobId();
 
+        // v1: serverIp null. v2: message 또는 apiKey에서 serverIp를 읽어 생성
+        ExchangeContext ctx = ExchangeContext.of(exchange);
+
         log.info("수집 메시지 수신: jobId={}, exchange={}, type={}", jobId, exchange, message.type());
 
         int maxConcurrent = maxConcurrentMap.getOrDefault(exchange, 3);
 
         // 1. Lease 획득
-        if (!leaseManager.tryAcquire(exchange, workerId, maxConcurrent)) {
+        if (!leaseManager.tryAcquire(ctx, workerId, maxConcurrent)) {
             log.info("Lease 획득 실패, 재큐잉: jobId={}, exchange={}", jobId, exchange);
             nack(channel, deliveryTag, true);
             return;
@@ -65,7 +69,7 @@ public class CollectionProcessor {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(Duration.ofSeconds(30));
-                    leaseManager.heartbeat(exchange, workerId);
+                    leaseManager.heartbeat(ctx, workerId);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -86,7 +90,7 @@ public class CollectionProcessor {
             nack(channel, deliveryTag, false);
         } finally {
             heartbeatThread.interrupt();
-            leaseManager.release(exchange, workerId);
+            leaseManager.release(ctx, workerId);
         }
     }
 
