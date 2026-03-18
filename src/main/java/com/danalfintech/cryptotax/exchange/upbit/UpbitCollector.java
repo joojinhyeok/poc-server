@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Slf4j
@@ -24,6 +25,7 @@ import java.util.List;
 public class UpbitCollector implements ExchangeCollector {
 
     private static final int PAGE_LIMIT = 100;
+    private static final DateTimeFormatter CURSOR_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private final UpbitConnector connector;
 
@@ -184,8 +186,10 @@ public class UpbitCollector implements ExchangeCollector {
 
             // SyncCursor 업데이트: 마지막 주문 시각을 저장 (다음 증분 수집의 start_time으로 사용)
             if (lastTradedAt != null) {
-                // nextCursor에는 마지막 주문의 created_at (ISO 8601 문자열)이 들어있음
-                String cursorValue = page.nextCursor() != null ? page.nextCursor() : lastTradedAt.toString();
+                // 항상 고정 포맷(yyyy-MM-dd'T'HH:mm:ss)으로 통일
+                String cursorValue = page.nextCursor() != null
+                        ? page.nextCursor()
+                        : lastTradedAt.format(CURSOR_FORMAT);
                 updateSyncCursor(userId, symbol, cursorValue, lastTradedAt);
             }
 
