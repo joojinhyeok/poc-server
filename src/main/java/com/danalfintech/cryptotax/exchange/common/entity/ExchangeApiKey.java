@@ -1,4 +1,4 @@
-package com.danalfintech.cryptotax.exchange.common;
+package com.danalfintech.cryptotax.exchange.common.entity;
 
 import com.danalfintech.cryptotax.global.common.BaseTimeEntity;
 import jakarta.persistence.*;
@@ -47,5 +47,12 @@ public class ExchangeApiKey extends BaseTimeEntity {
 
     public void invalidate() {
         this.isValid = false;
+    }
+
+    public void update(String accessKey, String secretKey, String memo) {
+        this.accessKey = accessKey;
+        this.secretKey = secretKey;
+        this.memo = memo;
+        this.isValid = true;
     }
 }

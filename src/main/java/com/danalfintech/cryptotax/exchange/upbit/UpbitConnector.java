@@ -1,6 +1,6 @@
 package com.danalfintech.cryptotax.exchange.upbit;
 
-import com.danalfintech.cryptotax.exchange.common.ExchangeApiKey;
+import com.danalfintech.cryptotax.exchange.common.entity.ExchangeApiKey;
 import com.danalfintech.cryptotax.exchange.upbit.dto.UpbitAccount;
 import com.danalfintech.cryptotax.exchange.upbit.dto.UpbitMarket;
 import com.danalfintech.cryptotax.exchange.upbit.dto.UpbitTrade;
@@ -9,7 +9,7 @@ import com.danalfintech.cryptotax.global.infra.exchange.dto.*;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeRestClientFactory;
 import com.danalfintech.cryptotax.global.infra.redis.DistributedRateLimiter;
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +23,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -40,6 +39,11 @@ public class UpbitConnector implements ExchangeConnector {
 
     private final DistributedRateLimiter rateLimiter;
     private final ExchangeRestClientFactory restClientFactory;
+
+    @Override
+    public Exchange getExchange() {
+        return Exchange.UPBIT;
+    }
 
     @Override
     public List<BalanceItem> getBalances(ExchangeApiKey key) {

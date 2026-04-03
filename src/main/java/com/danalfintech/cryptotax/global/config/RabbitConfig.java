@@ -15,10 +15,12 @@ public class RabbitConfig {
 
     public static final String QUEUE_HIGH = "queue.collection.high";
     public static final String QUEUE_LOW = "queue.collection.low";
+    public static final String QUEUE_SYMBOL = "queue.collection.symbol";
     public static final String QUEUE_DLQ = "queue.collection.dlq";
 
     public static final String ROUTING_HIGH = "collection.high";
     public static final String ROUTING_LOW = "collection.low";
+    public static final String ROUTING_SYMBOL = "collection.symbol";
     public static final String ROUTING_DLQ = "collection.dlq";
 
     @Bean
@@ -53,6 +55,14 @@ public class RabbitConfig {
     }
 
     @Bean
+    Queue symbolQueue() {
+        return QueueBuilder.durable(QUEUE_SYMBOL)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_COLLECTION_DLQ)
+                .withArgument("x-dead-letter-routing-key", ROUTING_DLQ)
+                .build();
+    }
+
+    @Bean
     Queue dlqQueue() {
         return QueueBuilder.durable(QUEUE_DLQ).build();
     }
@@ -65,6 +75,11 @@ public class RabbitConfig {
     @Bean
     Binding lowBinding() {
         return BindingBuilder.bind(lowQueue()).to(collectionExchange()).with(ROUTING_LOW);
+    }
+
+    @Bean
+    Binding symbolBinding() {
+        return BindingBuilder.bind(symbolQueue()).to(collectionExchange()).with(ROUTING_SYMBOL);
     }
 
     @Bean

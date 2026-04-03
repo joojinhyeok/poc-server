@@ -3,7 +3,7 @@ package com.danalfintech.cryptotax.collection.dto;
 import com.danalfintech.cryptotax.collection.domain.CollectionJob;
 import com.danalfintech.cryptotax.collection.domain.CollectionJobStatus;
 import com.danalfintech.cryptotax.collection.domain.CollectionJobType;
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 
 import java.time.LocalDateTime;
 
@@ -15,7 +15,7 @@ public record CollectionStatusResponse(
         int totalSymbols,
         int processedSymbols,
         int newTradesCount,
-        String failReason,
+        int failedSymbols,
         LocalDateTime startedAt,
         LocalDateTime completedAt
 ) {
@@ -28,7 +28,7 @@ public record CollectionStatusResponse(
                 job.getTotalSymbols(),
                 job.getProcessedSymbols(),
                 job.getNewTradesCount(),
-                job.getFailReason(),
+                job.getFailedSymbols(),
                 job.getStartedAt(),
                 job.getCompletedAt()
         );
@@ -47,7 +47,7 @@ public record CollectionStatusResponse(
                 progress.totalSymbols(),
                 progress.processedSymbols(),
                 progress.newTradesCount(),
-                job.getFailReason(),
+                job.getFailedSymbols(),
                 job.getStartedAt(),
                 job.getCompletedAt()
         );

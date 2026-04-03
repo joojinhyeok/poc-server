@@ -1,7 +1,7 @@
 package com.danalfintech.cryptotax.collection.worker;
 
 import com.danalfintech.cryptotax.collection.dto.CollectionMessage;
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 import com.danalfintech.cryptotax.global.config.ExchangeProperties;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import com.danalfintech.cryptotax.global.infra.redis.ExchangeLeaseManager;

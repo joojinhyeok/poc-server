@@ -1,6 +1,6 @@
 package com.danalfintech.cryptotax.global.infra.redis;
 
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 import com.danalfintech.cryptotax.global.common.RedisKeyBuilder;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import jakarta.annotation.PostConstruct;

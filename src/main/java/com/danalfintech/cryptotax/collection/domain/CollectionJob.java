@@ -1,6 +1,6 @@
 package com.danalfintech.cryptotax.collection.domain;
 
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 import com.danalfintech.cryptotax.global.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -42,7 +42,7 @@ public class CollectionJob extends BaseTimeEntity {
     private int totalSymbols;
     private int processedSymbols;
     private int newTradesCount;
-    private String failReason;
+    private int failedSymbols;
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
 
@@ -59,32 +59,19 @@ public class CollectionJob extends BaseTimeEntity {
         this.startedAt = LocalDateTime.now();
     }
 
-    public void markCompleted(int totalSymbols, int processedSymbols, int newTradesCount) {
+    public void markCompleted() {
         this.status = CollectionJobStatus.COMPLETED;
-        this.totalSymbols = totalSymbols;
-        this.processedSymbols = processedSymbols;
-        this.newTradesCount = newTradesCount;
         this.completedAt = LocalDateTime.now();
     }
 
-    public void markPartial(int totalSymbols, int processedSymbols, int newTradesCount, String failReason) {
+    public void markPartial() {
         this.status = CollectionJobStatus.PARTIAL;
-        this.totalSymbols = totalSymbols;
-        this.processedSymbols = processedSymbols;
-        this.newTradesCount = newTradesCount;
-        this.failReason = failReason;
         this.completedAt = LocalDateTime.now();
     }
 
-    public void markFailed(String failReason) {
+    public void markFailed() {
         this.status = CollectionJobStatus.FAILED;
-        this.failReason = failReason;
         this.completedAt = LocalDateTime.now();
-    }
-
-    public void updateProgress(int processedSymbols, int newTradesCount) {
-        this.processedSymbols = processedSymbols;
-        this.newTradesCount = newTradesCount;
     }
 
     public void setTotalSymbols(int totalSymbols) {

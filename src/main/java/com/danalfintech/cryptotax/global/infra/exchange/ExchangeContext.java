@@ -1,6 +1,6 @@
 package com.danalfintech.cryptotax.global.infra.exchange;
 
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 
 /**
  * 거래소 API 호출의 라우팅 컨텍스트.
