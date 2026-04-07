@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Slf4j
@@ -28,7 +27,6 @@ import java.util.List;
 public class UpbitCollector implements ExchangeCollector {
 
     private static final int PAGE_LIMIT = 100;
-    private static final DateTimeFormatter CURSOR_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private final UpbitConnector connector;
     private final TradeRepository tradeRepository;
@@ -127,7 +125,7 @@ public class UpbitCollector implements ExchangeCollector {
             if (lastTradedAt != null) {
                 String cursorValue = page.nextCursor() != null
                         ? page.nextCursor()
-                        : lastTradedAt.format(CURSOR_FORMAT);
+                        : lastTradedAt.format(UpbitConnector.CURSOR_FORMAT);
                 updateSyncCursor(userId, symbol, cursorValue, lastTradedAt);
             }
 

@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import java.math.BigDecimal;
+import java.net.SocketTimeoutException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Component
@@ -35,7 +37,7 @@ public class UpbitConnector implements ExchangeConnector {
     private static final int DEFAULT_LIMIT = 100;
     /** 업비트 /v1/orders/closed는 start_time 없으면 최근 7일만 조회. 전체 수집 시 이 기준일부터 시작 */
     private static final String FULL_COLLECTION_START = "2017-01-01T00:00:00";
-    private static final DateTimeFormatter CURSOR_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    public static final DateTimeFormatter CURSOR_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private final DistributedRateLimiter rateLimiter;
     private final ExchangeRestClientFactory restClientFactory;
@@ -261,16 +263,20 @@ public class UpbitConnector implements ExchangeConnector {
             OffsetDateTime odt = OffsetDateTime.parse(dateTimeStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             return odt.toLocalDateTime();
         } catch (Exception e) {
-            return LocalDateTime.now();
+            throw new IllegalArgumentException("업비트 날짜 파싱 실패: " + dateTimeStr, e);
         }
     }
 
     private boolean isTimeout(Exception e) {
-        return e.getMessage() != null && (
-                e.getMessage().contains("timeout") ||
-                e.getMessage().contains("Timeout") ||
-                e.getMessage().contains("timed out")
-        );
+        Throwable cause = e;
+        while (cause != null) {
+            if (cause instanceof SocketTimeoutException
+                    || cause instanceof TimeoutException) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     private void sleep(long millis) {
