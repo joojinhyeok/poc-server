@@ -4,13 +4,12 @@ import com.danalfintech.cryptotax.collection.domain.*;
 import com.danalfintech.cryptotax.collection.dto.CollectionMessage;
 import com.danalfintech.cryptotax.collection.dto.CollectionStartRequest;
 import com.danalfintech.cryptotax.collection.dto.CollectionStatusResponse;
-import com.danalfintech.cryptotax.exchange.common.Exchange;
-import com.danalfintech.cryptotax.exchange.common.ExchangeApiKey;
-import com.danalfintech.cryptotax.exchange.common.ExchangeApiKeyRepository;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.ExchangeApiKey;
+import com.danalfintech.cryptotax.exchange.common.repository.ExchangeApiKeyRepository;
 import com.danalfintech.cryptotax.global.config.RabbitConfig;
 import com.danalfintech.cryptotax.global.error.BusinessException;
 import com.danalfintech.cryptotax.global.error.ErrorCode;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -119,7 +118,7 @@ public class CollectionService {
                     try {
                         transactionTemplate.executeWithoutResult(status ->
                                 collectionJobRepository.findById(jobId).ifPresent(j -> {
-                                    j.markFailed("메시지 큐 발행 실패");
+                                    j.markFailed();
                                     collectionJobRepository.save(j);
                                 }));
                     } catch (Exception ex) {

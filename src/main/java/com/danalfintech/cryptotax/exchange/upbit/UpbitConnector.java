@@ -1,6 +1,6 @@
 package com.danalfintech.cryptotax.exchange.upbit;
 
-import com.danalfintech.cryptotax.exchange.common.ExchangeApiKey;
+import com.danalfintech.cryptotax.exchange.common.entity.ExchangeApiKey;
 import com.danalfintech.cryptotax.exchange.upbit.dto.UpbitAccount;
 import com.danalfintech.cryptotax.exchange.upbit.dto.UpbitMarket;
 import com.danalfintech.cryptotax.exchange.upbit.dto.UpbitTrade;
@@ -8,8 +8,10 @@ import com.danalfintech.cryptotax.global.infra.exchange.ExchangeConnector;
 import com.danalfintech.cryptotax.global.infra.exchange.dto.*;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeRestClientFactory;
+import com.danalfintech.cryptotax.global.error.BusinessException;
+import com.danalfintech.cryptotax.global.error.ErrorCode;
 import com.danalfintech.cryptotax.global.infra.redis.DistributedRateLimiter;
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -18,14 +20,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import java.math.BigDecimal;
+import java.net.SocketTimeoutException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Component
@@ -36,10 +39,15 @@ public class UpbitConnector implements ExchangeConnector {
     private static final int DEFAULT_LIMIT = 100;
     /** 업비트 /v1/orders/closed는 start_time 없으면 최근 7일만 조회. 전체 수집 시 이 기준일부터 시작 */
     private static final String FULL_COLLECTION_START = "2017-01-01T00:00:00";
-    private static final DateTimeFormatter CURSOR_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    public static final DateTimeFormatter CURSOR_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private final DistributedRateLimiter rateLimiter;
     private final ExchangeRestClientFactory restClientFactory;
+
+    @Override
+    public Exchange getExchange() {
+        return Exchange.UPBIT;
+    }
 
     @Override
     public List<BalanceItem> getBalances(ExchangeApiKey key) {
@@ -257,16 +265,20 @@ public class UpbitConnector implements ExchangeConnector {
             OffsetDateTime odt = OffsetDateTime.parse(dateTimeStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             return odt.toLocalDateTime();
         } catch (Exception e) {
-            return LocalDateTime.now();
+            throw new BusinessException(ErrorCode.EXCHANGE_API_RESPONSE_PARSE_FAILED);
         }
     }
 
     private boolean isTimeout(Exception e) {
-        return e.getMessage() != null && (
-                e.getMessage().contains("timeout") ||
-                e.getMessage().contains("Timeout") ||
-                e.getMessage().contains("timed out")
-        );
+        Throwable cause = e;
+        while (cause != null) {
+            if (cause instanceof SocketTimeoutException
+                    || cause instanceof TimeoutException) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     private void sleep(long millis) {

@@ -1,6 +1,6 @@
 package com.danalfintech.cryptotax.global.infra.exchange;
 
-import com.danalfintech.cryptotax.exchange.common.ExchangeApiKey;
+import com.danalfintech.cryptotax.exchange.common.entity.ExchangeApiKey;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 

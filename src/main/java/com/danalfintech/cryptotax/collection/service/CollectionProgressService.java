@@ -46,6 +46,11 @@ public class CollectionProgressService {
         }
     }
 
+    /** 심볼 워커용: newTradesCount는 DB 원자적 증가로 관리되므로 생략 */
+    public void updateProgress(Long jobId, String status, int totalSymbols, int processedSymbols) {
+        updateProgress(jobId, status, totalSymbols, processedSymbols, 0);
+    }
+
     public void deleteProgress(Long jobId) {
         try {
             redisTemplate.delete(progressKey(jobId));

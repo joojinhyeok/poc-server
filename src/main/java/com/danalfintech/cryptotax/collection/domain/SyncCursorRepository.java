@@ -1,6 +1,6 @@
 package com.danalfintech.cryptotax.collection.domain;
 
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

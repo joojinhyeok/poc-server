@@ -1,6 +1,6 @@
 package com.danalfintech.cryptotax.global.infra.redis;
 
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 import com.danalfintech.cryptotax.global.config.ExchangeProperties;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import lombok.extern.slf4j.Slf4j;

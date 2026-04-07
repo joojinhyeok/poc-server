@@ -26,7 +26,10 @@ public enum ErrorCode {
 
     // 거래소
     EXCHANGE_API_KEY_NOT_FOUND(HttpStatus.NOT_FOUND, "EX001", "거래소 API 키를 찾을 수 없습니다."),
-    EXCHANGE_API_KEY_INVALID(HttpStatus.BAD_REQUEST, "EX002", "유효하지 않은 거래소 API 키입니다.");
+    EXCHANGE_API_KEY_INVALID(HttpStatus.BAD_REQUEST, "EX002", "유효하지 않은 거래소 API 키입니다."),
+    EXCHANGE_API_KEY_ALREADY_EXISTS(HttpStatus.CONFLICT, "EX003", "이미 해당 거래소의 API 키가 등록되어 있습니다."),
+    EXCHANGE_API_RESPONSE_PARSE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "EX004", "거래소 API 응답 파싱에 실패했습니다.");
+
 
     private final HttpStatus status;
     private final String code;

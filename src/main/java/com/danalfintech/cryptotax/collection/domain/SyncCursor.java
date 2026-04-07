@@ -1,6 +1,6 @@
 package com.danalfintech.cryptotax.collection.domain;
 
-import com.danalfintech.cryptotax.exchange.common.Exchange;
+import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 import com.danalfintech.cryptotax.global.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
