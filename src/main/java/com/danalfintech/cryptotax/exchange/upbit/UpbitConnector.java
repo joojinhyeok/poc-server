@@ -8,6 +8,8 @@ import com.danalfintech.cryptotax.global.infra.exchange.ExchangeConnector;
 import com.danalfintech.cryptotax.global.infra.exchange.dto.*;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeContext;
 import com.danalfintech.cryptotax.global.infra.exchange.ExchangeRestClientFactory;
+import com.danalfintech.cryptotax.global.error.BusinessException;
+import com.danalfintech.cryptotax.global.error.ErrorCode;
 import com.danalfintech.cryptotax.global.infra.redis.DistributedRateLimiter;
 import com.danalfintech.cryptotax.exchange.common.entity.Exchange;
 import io.jsonwebtoken.Jwts;
@@ -263,7 +265,7 @@ public class UpbitConnector implements ExchangeConnector {
             OffsetDateTime odt = OffsetDateTime.parse(dateTimeStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             return odt.toLocalDateTime();
         } catch (Exception e) {
-            throw new IllegalArgumentException("업비트 날짜 파싱 실패: " + dateTimeStr, e);
+            throw new BusinessException(ErrorCode.EXCHANGE_API_RESPONSE_PARSE_FAILED);
         }
     }
 
