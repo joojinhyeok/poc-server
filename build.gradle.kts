@@ -62,8 +62,32 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
     testRuntimeOnly("com.h2database:h2")
+
+    // Testcontainers (통합 테스트용)
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:postgresql")
+    testImplementation("com.redis:testcontainers-redis:2.2.4")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dsun.jnu.encoding=UTF-8")
+
+    // Windows 한글 경로 ClassNotFoundException 우회:
+    // 한글 경로의 build output을 영문 temp 디렉토리에 junction으로 연결
+    val tempTestClasses = layout.buildDirectory.dir("tmp/test-cp")
+    doFirst {
+        val tmpDir = tempTestClasses.get().asFile
+        tmpDir.mkdirs()
+        val nonAsciiDirs = classpath.files.filter { it.path.any { c -> c.code > 127 } && it.isDirectory }
+        nonAsciiDirs.forEach { dir ->
+            val linkName = dir.name + "-" + dir.path.hashCode().toUInt().toString(16)
+            val link = File(tmpDir, linkName)
+            if (!link.exists()) {
+                // Windows directory junction (관리자 권한 불필요)
+                Runtime.getRuntime().exec(arrayOf("cmd", "/c", "mklink", "/J", link.absolutePath, dir.absolutePath)).waitFor()
+            }
+            classpath = classpath.minus(files(dir)).plus(files(link))
+        }
+    }
 }
